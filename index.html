@@ -248,7 +248,7 @@
                         <span style="color: #801d1a; font-family: monospace; font-size: 16px; letter-spacing: 0.5px;">suanbiao [at] outlook.com</span> <br>
                         <span style="font-size: 12px; font-weight: normal; color: #7a6348;">（请在发信时将 [at] 替换为 @ 符号以防机器人爬虫）</span>`,
             authTitle: "✍️ 关于主理人与开发初衷",
-            authBody: `本项目由一名中学生独立发起与开发。我没有任何历史研究或软件开发的专业背景，做这个网站纯粹是出于对《算表》的好奇，以及对两千年前古人惊人智慧的由衷自豪。我希望用现代的网页前端代码，把竹简上模糊的数字变成全人类都能亲手操作的动态互动工具。这也是我开始尝试自学代码、记录自己一点点尝试过程的起点。如果您对我的经历感兴趣，或者想提供指导，欢迎<a href="mailto:suanbiao@outlook.com" class="author-email-link">来信与我交流</a>。`,
+            authBody: `本项目由一名中学生独立发起与开发。我没有任何历史研究或软件开发的专业背景，做这个网站纯粹是出于对《算表》的好奇，以及对两千年前古人惊人智慧的由衷自豪。我希望用现代的网页前端代码，把竹简上模糊的文字变成全人类都能亲手操作的动态互动工具。这也是我开始尝试自学代码、记录自己一点点尝试过程的起点。如果您对我的经历感兴趣，或者想提供指导，欢迎<a href="mailto:suanbiao@outlook.com" class="author-email-link">来信与我交流</a>。`,
             authMeta: "",
             modeMul: "乘法模式", modeDiv: "除法模式", modeSqr: "平方 / 开方模式",
             labelMul1: "乘数（顶行）：", labelMul2: "被乘数（右列）：", btnMulRun: "拉线运筹",
@@ -433,15 +433,62 @@
     }
 
     function executeSuanbiao() {
-        document.querySelectorAll('td, th').forEach(el => {
-            el.classList.remove('laser-beam-col', 'laser-beam-row', 'intersection-cell', 'answer-highlight');
-        });
+        // 1. 清除上一次的高亮与演化样式
+    document.querySelectorAll('td, th').forEach(el => {
+        el.classList.remove('laser-beam-col', 'laser-beam-row', 'intersection-cell', 'answer-highlight');
+    });
 
-        let p1 = parseFloat(document.getElementById('param1').value);
-        let summaryBox = document.getElementById('summaryResult');
-        const lang = i18nData[currentLang];
+    let p1 = parseFloat(document.getElementById('param1').value);
+    let summaryBox = document.getElementById('summaryResult');
+    const lang = i18nData[currentLang];
 
-        if (isNaN(p1)) { alert(lang.alertValid); return; }
+    // 基础防御：确保输入的是有效数字
+    if (isNaN(p1)) { alert(lang.alertValid); return; }
+
+    // ================== 【统一物理边界自适应防御系统】 ==================
+    if (currentMode === 'MULTIPLY') {
+        let p2 = parseFloat(document.getElementById('param2').value);
+        // 乘法：两个乘数在物理上都不能超过表头组件的最大组合（90 + 9 + 0.5 = 99.5）
+        if (p1 < 0.5 || p1 > 99.5 || p2 < 0.5 || p2 > 99.5) {
+            alert(currentLang === 'zh' ? 
+                "【算表物理边界提示】\n输入的数值超出了竹简大表的物理容纳极限。\n依据清华简实物规格，顶行与右列的单项因子最大组合跨度仅支持 0.5 至 99.5 之间的计算。" : 
+                "【Suanbiao Physical Limit】\nInput value exceeds the physical limits of the bamboo matrix.\nAccording to the original manuscript, the single factor component row/column span only supports a range from 0.5 to 99.5.");
+            return;
+        }
+    } 
+    else if (currentMode === 'DIVIDE') {
+        let p2 = parseFloat(document.getElementById('param2').value); // 除数
+        let expectedQuotient = p1 / p2; // 预估商
+        
+        // 除法：除数对应顶行组件，运算所得的商对应右列组件，二者在物理上都不能超过 99.5 
+        if (p2 < 0.5 || p2 > 99.5 || expectedQuotient < 0.5 || expectedQuotient > 99.5 || p1 <= 0) {
+            alert(currentLang === 'zh' ? 
+                "【算表逆向除法超限】\n无法在当前矩阵中完成该除法逆向寻踪。\n依据实物算力，已知的除数（顶行引线）以及最终逆向求得的商（右答案列）都必须在 0.5 至 99.5 的物理竹简范围内。" : 
+                "【Suanbiao Division Exceeds Capacity】\nUnable to perform reverse matrix tracking for this input.\nBased on the practical computing power of the artifact, both the known Divisor (Top) and the resulting Quotient (Right) must reside within the 0.5 to 99.5 physical boundary.");
+            return;
+        }
+    } 
+    else {
+        const subMode = document.getElementById('sqrSubMode').value;
+        if (subMode === 'PINGFANG') {
+            // 平方：底数同时拉动顶行与右列对称引线，不能超过 99.5
+            if (p1 < 0.5 || p1 > 99.5) {
+                alert(currentLang === 'zh' ? 
+                    "【算表平方演化提示】\n平方底数超出了竹简表头范围。\n演化平方需要底数在顶行与右列同时拉出对称引线，输入数值须在 0.5 至 99.5 之间。" : 
+                    "【Suanbiao Square Limit】\nBase number exceeds the matrix scale.\nTo evolve a square, the identical base must project symmetrical guides onto both rows and columns, requiring a range from 0.5 to 99.5.");
+                return;
+            }
+        } else {
+            // 开方：逆向对称围合，最终开出来的“根”（结果）不能超过 99.5 的竹简极限
+            let expectedRoot = Math.sqrt(p1);
+            if (p1 < 0.25 || expectedRoot > 99.5) {
+                alert(currentLang === 'zh' ? 
+                    "【算表对称开方超限】\n目标被开方数超出了大表关于主对角线对称围合的算力极限。\n本矩阵可逆向寻根的最大数值为 9900.25（即 99.5 的自乘最大积）。" : 
+                    "【Suanbiao Square Root Exceeds Capacity】\nTarget radicand exceeds the diagonal cross-grid enclosure limit.\nThe maximum determinable radicand for this reconstruction is 9900.25 (the square of 99.5).");
+                return;
+            }
+        }
+    }
 
         if (currentMode === 'MULTIPLY') {
             let p2 = parseFloat(document.getElementById('param2').value);
